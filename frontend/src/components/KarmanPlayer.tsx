@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import { icons } from './icons';
 
 export type PlaybackNeighbour = { id: number; title: string } | null;
@@ -48,6 +48,9 @@ export function KarmanPlayer({
   const seekTimer = useRef<number | undefined>(undefined);
   const volumeTimer = useRef<number | undefined>(undefined);
   const tapTimer = useRef<number | undefined>(undefined);
+  const lastPointer = useRef('mouse');
+  // Пользователь сам поставил паузу — автозапуск не должен её снимать.
+  const userPaused = useRef(false);
   const lastTap = useRef({ at: 0, x: 0, y: 0 });
   const seekRef = useRef(false);
   const prefetched = useRef(new Set<string>());
@@ -118,10 +121,12 @@ export function KarmanPlayer({
     setEnded(false);
     setCountdown(null);
     if (player.paused || player.ended) {
+      userPaused.current = false;
       if (player.ended) player.currentTime = 0;
       void player.play().catch(() => setBlocked(true));
       wake();
     } else {
+      userPaused.current = true;
       player.pause();
     }
   }, [wake]);
@@ -166,6 +171,7 @@ export function KarmanPlayer({
     setResume(null);
     setEnded(false);
     setCountdown(null);
+    userPaused.current = false;
     void player.play().catch(() => setBlocked(true));
     wake();
   }, [wake]);
@@ -359,10 +365,13 @@ export function KarmanPlayer({
       setResume(startAt);
       window.setTimeout(() => setResume(null), 8000);
     }
-    void player.play().then(() => setBlocked(false)).catch(() => setBlocked(true));
+    if (!userPaused.current) {
+      void player.play().then(() => setBlocked(false)).catch(() => setBlocked(true));
+    }
   };
 
   const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    lastPointer.current = event.pointerType;
     if (event.pointerType === 'mouse') return;
     seekRef.current = false;
     (event.currentTarget as HTMLDivElement).dataset.startX = String(event.clientX);
@@ -384,6 +393,17 @@ export function KarmanPlayer({
       const base = Number(host.dataset.startVolume);
       changeVolume(base - dy / 260);
     }
+  };
+
+  const onShellClick = (event: ReactMouseEvent<HTMLDivElement>) => {
+    if (event.button !== 0) return;
+    // Тач-события уже обрабатываются в onPointerUp, синтетический click не нужен.
+    if (lastPointer.current !== 'mouse') return;
+    const target = event.target as HTMLElement;
+    // Клик по самому видео (или пустой области) — пауза/воспроизведение.
+    // Клики по контролам, плашкам и оверлеям сюда не доходят.
+    if (!(target instanceof HTMLVideoElement) && target !== shellRef.current) return;
+    togglePlay();
   };
 
   const onPointerUp = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -426,6 +446,7 @@ export function KarmanPlayer({
     <div
       ref={shellRef}
       className={`kp${controls ? ' is-awake' : ''}${fullscreen ? ' is-full' : ''}`}
+      onClick={onShellClick}
       onPointerDown={onPointerDown}
       onPointerMove={(event) => {
         if (event.pointerType === 'mouse') wake();
@@ -514,6 +535,7 @@ export function KarmanPlayer({
               if (!player) return;
               setFailed(false);
               setWaiting(true);
+              userPaused.current = false;
               player.load();
               void player.play().catch(() => setBlocked(true));
             }}

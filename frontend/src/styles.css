@@ -1693,7 +1693,7 @@ select.input option { background: #14141a; color: var(--text); }
   touch-action: manipulation;
 }
 
-.kp-video { display: block; width: 100%; height: 100%; object-fit: contain; background: #000; }
+.kp-video { display: block; width: 100%; height: 100%; object-fit: contain; background: #000; cursor: pointer; }
 
 .kp:fullscreen,
 .kp.is-full {
@@ -1713,11 +1713,21 @@ select.input option { background: #14141a; color: var(--text); }
 
 .kp.is-awake .kp-ui { opacity: 1; }
 
-.kp-top,
-.kp-bottom,
-.kp-center,
 .kp-next,
 .kp-resume { pointer-events: auto; }
+
+/* Пустые полосы и центр не перехватывают клик: он ставит паузу на самом видео. */
+.kp-top,
+.kp-bottom,
+.kp-center { pointer-events: none; }
+
+.kp-top .kp-round,
+.kp-top .kp-chip,
+.kp-bottom .kp-timeline,
+.kp-bottom .kp-row,
+.kp-center .kp-cta,
+.kp-center .kp-skip,
+.kp-center .kp-pill { pointer-events: auto; }
 
 .kp-top {
   position: absolute;
@@ -2283,7 +2293,7 @@ select.input option { background: #14141a; color: var(--text); }
   .kp-seek, .kp-volume-flash, .kp-next, .kp-resume, .kp-menu { animation-duration: 0.001s !important; }
 }
 
-/* ---------- ���� ---------- */
+/* ---------- ���� ---------- */
 
 :root[data-theme="phosphor"] {
   --bg: #040604;
@@ -2440,7 +2450,7 @@ select.input option { background: #14141a; color: var(--text); }
   letter-spacing: -0.03em;
 }
 
-/* ����� ���� */
+/* ����� ���� */
 
 .theme-grid {
   display: grid;
