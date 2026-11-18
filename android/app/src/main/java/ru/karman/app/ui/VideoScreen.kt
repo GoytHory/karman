@@ -32,6 +32,7 @@ import androidx.compose.material.icons.rounded.ThumbUp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -155,6 +156,10 @@ fun VideoScreen(videoId: Int, onOpen: (Int) -> Unit) {
 
     BackHandler(enabled = fullscreen) { fullscreen = false }
 
+    LaunchedEffect(controller) {
+        if (controller == null) fullscreen = false
+    }
+
     if (loading) {
         LoadingBox()
         return
@@ -166,7 +171,7 @@ fun VideoScreen(videoId: Int, onOpen: (Int) -> Unit) {
     }
 
     if (fullscreen && controller != null) {
-        FullscreenPlayer {
+        FullscreenPlayer(onDismiss = { fullscreen = false }) {
             KarmanPlayer(
                 controller = controller,
                 title = item.title,
@@ -217,22 +222,32 @@ fun VideoScreen(videoId: Int, onOpen: (Int) -> Unit) {
                 .clip(RoundedCornerShape(8.dp))
                 .background(Color.Black),
         ) {
-            if (ready && controller != null) {
-                KarmanPlayer(
-                    controller = controller,
-                    title = item.title,
-                    modifier = Modifier.fillMaxSize(),
-                    previewUrl = previewUrl,
-                    previewStep = previewStep,
-                    nextTitle = next?.title,
-                    fullscreen = false,
-                    onToggleFullscreen = { fullscreen = true },
-                    onNext = next?.let { neighbour -> { onOpen(neighbour.id) } },
-                    onProgress = { position, duration, completed ->
-                        postProgress(position, duration, completed)
-                    },
-                    onLeave = { position, duration -> postProgress(position, duration) },
-                )
+            if (ready) {
+                if (controller != null) {
+                    KarmanPlayer(
+                        controller = controller,
+                        title = item.title,
+                        modifier = Modifier.fillMaxSize(),
+                        previewUrl = previewUrl,
+                        previewStep = previewStep,
+                        nextTitle = next?.title,
+                        fullscreen = false,
+                        onToggleFullscreen = { fullscreen = true },
+                        onNext = next?.let { neighbour -> { onOpen(neighbour.id) } },
+                        onProgress = { position, duration, completed ->
+                            postProgress(position, duration, completed)
+                        },
+                        onLeave = { position, duration -> postProgress(position, duration) },
+                    )
+                } else {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(26.dp),
+                            color = Lime,
+                            strokeWidth = 2.dp,
+                        )
+                    }
+                }
             } else {
                 PlayerPlaceholder(
                     item = item,
@@ -439,16 +454,16 @@ private fun NextCard(title: String, onClick: () -> Unit) {
  * переводим активность в горизонтальную ориентацию, пока окно открыто.
  */
 @Composable
-private fun FullscreenPlayer(content: @Composable () -> Unit) {
+private fun FullscreenPlayer(onDismiss: () -> Unit, content: @Composable () -> Unit) {
     val context = LocalContext.current
     val activity = context.findActivity()
 
     Dialog(
-        onDismissRequest = { },
+        onDismissRequest = onDismiss,
         properties = DialogProperties(
             usePlatformDefaultWidth = false,
             decorFitsSystemWindows = false,
-            dismissOnBackPress = false,
+            dismissOnBackPress = true,
             dismissOnClickOutside = false,
         ),
     ) {
