@@ -7,9 +7,9 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 
-# локальные данные и секреты
-data/
-video/
+# локальные данные и секреты (только в корне проекта)
+/data/
+/video/
 secrets/*
 !secrets/.gitkeep
 .env

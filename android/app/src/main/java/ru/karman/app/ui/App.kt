@@ -161,7 +161,10 @@ private fun MainShell(onLoggedOut: () -> Unit) {
                 route = "playlist/{id}",
                 arguments = listOf(navArgument("id") { type = NavType.IntType }),
             ) { entry ->
-                PlaylistVideosScreen(entry.arguments?.getInt("id") ?: 0)
+                PlaylistVideosScreen(
+                    playlistId = entry.arguments?.getInt("id") ?: 0,
+                    onOpen = { id -> nav.navigate("video/$id") },
+                )
             }
         }
     }
