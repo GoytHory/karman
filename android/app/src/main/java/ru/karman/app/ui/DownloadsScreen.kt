@@ -163,9 +163,8 @@ fun DownloadsScreen() {
                             Icon(Icons.Rounded.Close, contentDescription = "Закрыть", tint = TextDim)
                         }
                     }
-                    PlayerSurface(
+                    LocalPlayer(
                         url = Uri.fromFile(File(item.path)).toString(),
-                        withAuth = false,
                         modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f),
                     )
                 }

@@ -1,5 +1,10 @@
 package ru.karman.app.ui
 
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -135,17 +140,50 @@ private fun MainShell(onLoggedOut: () -> Unit) {
             navController = nav,
             startDestination = "library",
             modifier = Modifier.padding(padding),
+            // Быстрые переходы: раньше анимация занимала почти секунду и ощущалась вязкой.
+            enterTransition = {
+                fadeIn(tween(170)) + slideInHorizontally(tween(200)) { it / 14 }
+            },
+            exitTransition = { fadeOut(tween(120)) },
+            popEnterTransition = { fadeIn(tween(170)) },
+            popExitTransition = {
+                fadeOut(tween(120)) + slideOutHorizontally(tween(200)) { it / 14 }
+            },
         ) {
-            composable("library") {
+            composable(
+                "library",
+                enterTransition = { fadeIn(tween(150)) },
+                exitTransition = { fadeOut(tween(110)) },
+                popEnterTransition = { fadeIn(tween(150)) },
+                popExitTransition = { fadeOut(tween(110)) },
+            ) {
                 LibraryScreen(onOpen = { id -> nav.navigate("video/$id") })
             }
-            composable("playlists") {
+            composable(
+                "playlists",
+                enterTransition = { fadeIn(tween(150)) },
+                exitTransition = { fadeOut(tween(110)) },
+                popEnterTransition = { fadeIn(tween(150)) },
+                popExitTransition = { fadeOut(tween(110)) },
+            ) {
                 PlaylistsScreen(onOpen = { id -> nav.navigate("playlist/$id") })
             }
-            composable("history") {
+            composable(
+                "history",
+                enterTransition = { fadeIn(tween(150)) },
+                exitTransition = { fadeOut(tween(110)) },
+                popEnterTransition = { fadeIn(tween(150)) },
+                popExitTransition = { fadeOut(tween(110)) },
+            ) {
                 HistoryScreen(onOpen = { id -> nav.navigate("video/$id") })
             }
-            composable("downloads") {
+            composable(
+                "downloads",
+                enterTransition = { fadeIn(tween(150)) },
+                exitTransition = { fadeOut(tween(110)) },
+                popEnterTransition = { fadeIn(tween(150)) },
+                popExitTransition = { fadeOut(tween(110)) },
+            ) {
                 DownloadsScreen()
             }
             composable("settings") {
@@ -155,7 +193,15 @@ private fun MainShell(onLoggedOut: () -> Unit) {
                 route = "video/{id}",
                 arguments = listOf(navArgument("id") { type = NavType.IntType }),
             ) { entry ->
-                VideoScreen(entry.arguments?.getInt("id") ?: 0)
+                val id = entry.arguments?.getInt("id") ?: 0
+                VideoScreen(
+                    videoId = id,
+                    onOpen = { next ->
+                        nav.navigate("video/$next") {
+                            popUpTo(entry.destination.id) { inclusive = true }
+                        }
+                    },
+                )
             }
             composable(
                 route = "playlist/{id}",

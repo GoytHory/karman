@@ -26,6 +26,9 @@ interface Api {
     @GET("api/videos/{id}")
     suspend fun video(@Path("id") id: Int): Video
 
+    @GET("api/videos/{id}/playback")
+    suspend fun playback(@Path("id") id: Int): PlaybackInfo
+
     @POST("api/videos/{id}/reaction")
     suspend fun reaction(@Path("id") id: Int, @Body body: ReactionBody): Video
 

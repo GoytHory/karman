@@ -81,6 +81,21 @@ export type VideoList = {
   items: Video[];
 };
 
+export type PlaybackNeighbour = {
+  id: number;
+  title: string;
+};
+
+export type PlaybackInfo = {
+  video: Video;
+  stream_url: string;
+  poster_url: string;
+  position_s: number;
+  preview: { url: string; step: number };
+  prev: PlaybackNeighbour | null;
+  next: PlaybackNeighbour | null;
+};
+
 export type HistoryEvent = {
   id: number;
   video_id: number | null;

@@ -31,6 +31,20 @@ object Session {
             prefs.edit().putString("username", value).apply()
         }
 
+    /** Последняя выбранная скорость воспроизведения. */
+    var speed: Float
+        get() = prefs.getFloat("speed", 1f)
+        set(value) {
+            prefs.edit().putFloat("speed", value).apply()
+        }
+
+    /** Идентификатор темы оформления. */
+    var theme: String
+        get() = prefs.getString("theme", "graphite") ?: "graphite"
+        set(value) {
+            prefs.edit().putString("theme", value).apply()
+        }
+
     val isLoggedIn: Boolean
         get() = !token.isNullOrBlank() && server.isNotBlank()
 

@@ -1,5 +1,5 @@
 import type {
-  AuthResponse, HistoryList, Playlist, Settings, SystemStatus, UserRef, Video, VideoList,
+  AuthResponse, HistoryList, PlaybackInfo, Playlist, Settings, SystemStatus, UserRef, Video, VideoList,
 } from './types';
 
 export class ApiError extends Error {
@@ -65,6 +65,7 @@ export const api = {
     q?: string; limit?: number; offset?: number;
   } = {}) => request<VideoList>(`/api/videos${query(params)}`),
   video: (id: number) => request<Video>(`/api/videos/${id}`),
+  playback: (id: number) => request<PlaybackInfo>(`/api/videos/${id}/playback`),
   react: (id: number, reaction: 'like' | 'dislike' | 'none') =>
     request<Video>(`/api/videos/${id}/reaction`, { method: 'POST', body: JSON.stringify({ reaction }) }),
   deleteVideo: (id: number) => request<Video>(`/api/videos/${id}/delete`, { method: 'POST' }),

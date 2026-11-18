@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { api, ApiError } from '../api';
 import { useAuth } from '../auth';
 import { ErrorBox, Spinner, formatSize } from '../components/ui';
+import { THEMES, applyTheme, getTheme, type ThemeId } from '../theme';
 import type { SystemStatus } from '../types';
 
 type ParamKey = 'unwatched' | 'watched' | 'poll';
@@ -35,6 +36,7 @@ const PARAMS: Array<{
 export function SettingsPage() {
   const { settings, setSettings, user } = useAuth();
   const [param, setParam] = useState<ParamKey>('unwatched');
+  const [theme, setTheme] = useState<ThemeId>(() => getTheme());
   const [draft, setDraft] = useState({
     unwatched: settings?.retention_unwatched_days ?? 7,
     watched: settings?.retention_watched_days ?? 1,
@@ -105,6 +107,46 @@ export function SettingsPage() {
       </div>
 
       {error && <ErrorBox text={error} onRetry={() => void submit()} />}
+
+      <div className="block">
+        <div className="block-head">
+          <span className="block-title">Оформление</span>
+          <span className="mono mute">сохраняется в браузере</span>
+        </div>
+        <div className="theme-grid" role="radiogroup" aria-label="Тема оформления">
+          {THEMES.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              role="radio"
+              aria-checked={theme === item.id}
+              className={theme === item.id ? 'theme-card selected' : 'theme-card'}
+              onClick={() => { setTheme(item.id); applyTheme(item.id); }}
+            >
+              <span
+                className="theme-preview"
+                style={{ background: item.preview.bg, borderColor: item.preview.panel }}
+                aria-hidden="true"
+              >
+                <span className="theme-preview-head">
+                  <i className="theme-preview-dot" style={{ background: item.preview.accent }} />
+                  <i className="theme-preview-line wide" style={{ background: item.preview.text }} />
+                </span>
+                <span className="theme-preview-head">
+                  <i className="theme-preview-line wide" style={{ background: item.preview.dim }} />
+                  <i className="theme-preview-line short" style={{ background: item.preview.accent }} />
+                </span>
+                <span className="theme-preview-head">
+                  <i className="theme-preview-line mid" style={{ background: item.preview.panel }} />
+                  <i className="theme-preview-line short" style={{ background: item.preview.dim }} />
+                </span>
+              </span>
+              <span className="theme-name">{item.name}</span>
+              <span className="theme-note">{item.note}</span>
+            </button>
+          ))}
+        </div>
+      </div>
 
       <div className="picker">
         <div className="picker-main">

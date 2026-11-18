@@ -60,6 +60,9 @@ def move_video(video: Video, target_dir: Path) -> str | None:
 
 
 def delete_files(video: Video) -> None:
+    """Убирает файлы видео и кэш кадров для таймлайна."""
+    previews = get_settings().data_dir / "previews" / str(video.id)
+    shutil.rmtree(previews, ignore_errors=True)
     path = absolute(video)
     if path is None:
         return

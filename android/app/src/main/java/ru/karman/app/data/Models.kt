@@ -113,3 +113,23 @@ data class ProgressResponse(
     val watched_at: String? = null,
     val delete_after: String? = null,
 )
+
+data class PlaybackNeighbour(
+    val id: Int = 0,
+    val title: String = "",
+)
+
+data class PreviewInfo(
+    val url: String = "",
+    val step: Int = 5,
+)
+
+data class PlaybackInfo(
+    val video: Video = Video(),
+    val stream_url: String = "",
+    val poster_url: String = "",
+    val position_s: Double = 0.0,
+    val preview: PreviewInfo = PreviewInfo(),
+    val prev: PlaybackNeighbour? = null,
+    val next: PlaybackNeighbour? = null,
+)

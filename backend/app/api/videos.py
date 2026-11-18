@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import asyncio
 import mimetypes
 from pathlib import Path
 from urllib.parse import quote
+from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import FileResponse, RedirectResponse, StreamingResponse
@@ -12,6 +14,7 @@ from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import current_user
+from app.config import get_settings
 from app.db import get_session
 from app.models import Playlist, User, UserSettings, Video, ViewEvent, utcnow
 from app.schemas import ProgressIn, ReactionIn
@@ -20,6 +23,21 @@ from app.services import files
 from app.services.downloads import notify as notify_downloads
 
 router = APIRouter(prefix="/api/videos", tags=["videos"])
+
+# Превью на таймлайне: кадр раз в 5 секунд, ширина 320 px.
+PREVIEW_STEP = 5
+PREVIEW_WIDTH = 320
+# Одновременно режем не больше двух кадров: ffmpeg жрёт ядра, а превью — мелочь.
+_preview_locks: dict[str, asyncio.Semaphore] = {}
+
+
+def _preview_lock(video_id: int) -> asyncio.Semaphore:
+    key = str(video_id)
+    lock = _preview_locks.get(key)
+    if lock is None:
+        lock = asyncio.Semaphore(2)
+        _preview_locks[key] = lock
+    return lock
 
 
 def _visible(user: User):
@@ -128,6 +146,81 @@ async def get_video(
 ) -> dict:
     video, playlist, owner, settings = await _context(session, user, video_id)
     return video_out(video, playlist, owner.username, settings, user)
+
+
+@router.get("/{video_id}/playback")
+async def playback(
+    video_id: int,
+    user: User = Depends(current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Всё, что нужно плееру: поток, позиция возобновления и соседи по плейлисту."""
+    video, playlist, owner, settings = await _context(session, user, video_id)
+    rows = (await session.execute(
+        select(Video.id, Video.title)
+        .where(Video.playlist_id == playlist.id, Video.status == "ready")
+        .order_by(Video.downloaded_at.desc(), Video.id.desc())
+    )).all()
+    ids = [row[0] for row in rows]
+    index = ids.index(video.id) if video.id in ids else -1
+    previous = rows[index - 1] if index > 0 else None
+    following = rows[index + 1] if 0 <= index < len(rows) - 1 else None
+    return {
+        "video": video_out(video, playlist, owner.username, settings, user),
+        "stream_url": f"/api/videos/{video.id}/stream",
+        "poster_url": f"/api/videos/{video.id}/thumbnail",
+        "position_s": video.watch_position_s or 0,
+        "preview": {"url": f"/api/videos/{video.id}/preview?t={{t}}", "step": PREVIEW_STEP},
+        "prev": {"id": previous[0], "title": previous[1]} if previous else None,
+        "next": {"id": following[0], "title": following[1]} if following else None,
+    }
+
+
+async def _make_preview(source: Path, target: Path, at: float) -> bool:
+    target.parent.mkdir(parents=True, exist_ok=True)
+    tmp = target.with_name(f"{target.stem}.{uuid4().hex}.jpg")
+    cmd = [
+        get_settings().ffmpeg_bin, "-hide_banner", "-loglevel", "error", "-y",
+        "-ss", f"{at:.3f}", "-i", str(source),
+        "-frames:v", "1", "-vf", f"scale={PREVIEW_WIDTH}:-2",
+        "-q:v", "6", str(tmp),
+    ]
+    proc = await asyncio.create_subprocess_exec(
+        *cmd, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL,
+    )
+    await proc.wait()
+    if proc.returncode != 0 or not tmp.is_file():
+        tmp.unlink(missing_ok=True)
+        return False
+    tmp.replace(target)
+    return True
+
+
+@router.get("/{video_id}/preview")
+async def preview(
+    video_id: int,
+    t: float = Query(0, ge=0),
+    user: User = Depends(current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Кадр для превью на таймлайне. Кэшируется по пятисекундным шагам."""
+    video, _, _, _ = await _context(session, user, video_id)
+    path = files.absolute(video)
+    if path is None or not path.is_file() or video.status != "ready":
+        raise HTTPException(404, "Файла нет")
+    bucket = int(t // PREVIEW_STEP) * PREVIEW_STEP
+    if video.duration_s:
+        bucket = min(bucket, int(video.duration_s // PREVIEW_STEP) * PREVIEW_STEP)
+    target = get_settings().data_dir / "previews" / str(video.id) / f"{bucket}.jpg"
+    if not target.is_file():
+        async with _preview_lock(video.id):
+            if not target.is_file() and not await _make_preview(path, target, bucket):
+                raise HTTPException(404, "Кадр не получился")
+    return FileResponse(
+        target,
+        media_type="image/jpeg",
+        headers={"Cache-Control": "private, max-age=604800"},
+    )
 
 
 @router.post("/{video_id}/reaction")

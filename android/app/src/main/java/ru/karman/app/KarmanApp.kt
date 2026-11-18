@@ -7,11 +7,13 @@ import ru.karman.app.data.Downloads
 import ru.karman.app.data.Notifications
 import ru.karman.app.data.Repo
 import ru.karman.app.data.Session
+import ru.karman.app.ui.applySavedPalette
 
 class KarmanApp : Application(), ImageLoaderFactory {
     override fun onCreate() {
         super.onCreate()
         Session.init(this)
+        applySavedPalette()
         Downloads.ensureDir(this)
         Notifications.init(this)
     }
