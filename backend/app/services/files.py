@@ -20,11 +20,16 @@ def absolute(video: Video) -> Path | None:
 
 
 def companions(path: Path) -> list[Path]:
-    """Главный файл и всё, что yt-dlp положил рядом: .info.json, обложка, субтитры."""
+    """Главный файл и всё, что yt-dlp положил рядом: .info.json, обложка, субтитры.
+
+    Ищем по префиксу имени, а не через glob: yt-dlp добавляет в имя видео `[id]`,
+    а glob принимает квадратные скобки за шаблон и не находит ни одного файла.
+    """
     base = file_base(path)
     if not path.parent.is_dir():
         return []
-    return [p for p in path.parent.glob(base + ".*") if p.is_file()]
+    prefix = base + "."
+    return [p for p in path.parent.iterdir() if p.is_file() and p.name.startswith(prefix)]
 
 
 def _unique(path: Path) -> Path:
