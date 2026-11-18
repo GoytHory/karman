@@ -269,6 +269,7 @@ async def stream(
         "Content-Disposition": f"inline; filename*=UTF-8''{quote(path.name)}",
     }
     range_header = request.headers.get("range")
+    status = 200
     if range_header:
         try:
             raw = range_header.split("=", 1)[1]
@@ -280,24 +281,28 @@ async def stream(
         if start >= size or start < 0 or end < start:
             return StreamingResponse(iter(()), status_code=416, headers={"Content-Range": f"bytes */{size}"})
         end = min(end, size - 1)
-        length = end - start + 1
+        status = 206
+        headers["Content-Range"] = f"bytes {start}-{end}/{size}"
+    else:
+        start, end = 0, size - 1
 
-        def chunks():
-            with path.open("rb") as handle:
-                handle.seek(start)
-                remaining = length
-                while remaining > 0:
-                    data = handle.read(min(1024 * 256, remaining))
-                    if not data:
-                        break
-                    remaining -= len(data)
-                    yield data
+    length = end - start + 1
+    headers["Content-Length"] = str(length)
 
-        headers.update({"Content-Range": f"bytes {start}-{end}/{size}", "Content-Length": str(length)})
-        return StreamingResponse(chunks(), status_code=206, media_type=media, headers=headers)
-    return StreamingResponse(
-        path.open("rb"), media_type=media, headers={**headers, "Content-Length": str(size)},
-    )
+    # Всегда читаем блоками: отдача файла объектом заставляет Starlette идти по
+    # строкам, а бинарник режется по байту 0x0A — это в сотни раз медленнее.
+    def chunks():
+        with path.open("rb") as handle:
+            handle.seek(start)
+            remaining = length
+            while remaining > 0:
+                data = handle.read(min(512 * 1024, remaining))
+                if not data:
+                    break
+                remaining -= len(data)
+                yield data
+
+    return StreamingResponse(chunks(), status_code=status, media_type=media, headers=headers)
 
 
 @router.get("/{video_id}/download")
