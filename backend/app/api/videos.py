@@ -331,9 +331,15 @@ async def progress(
     event.completed = completed
     event.last_at = now
 
-    if owner.id == user.id and completed and video.watched_at is None:
-        video.watched_at = now
-        video.watch_position_s = position
+    if owner.id == user.id:
+        if completed:
+            if video.watched_at is None:
+                video.watched_at = now
+            # Досмотрели — в следующий раз начинаем сначала.
+            video.watch_position_s = 0
+        else:
+            # Позиция для продолжения с того же места.
+            video.watch_position_s = position
     await session.commit()
     return {
         "event_id": event.id,
