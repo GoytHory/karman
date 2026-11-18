@@ -53,7 +53,7 @@ fun PlayerSurface(
             delay(10_000)
             val duration = player.duration
             if (player.isPlaying && duration > 0) {
-                latestProgress?.invoke(player.currentTime / 1000.0, duration / 1000.0)
+                latestProgress?.invoke(player.currentPosition / 1000.0, duration / 1000.0)
             }
         }
     }
@@ -61,7 +61,7 @@ fun PlayerSurface(
     DisposableEffect(player) {
         onDispose {
             val duration = player.duration
-            if (duration > 0) latestProgress?.invoke(player.currentTime / 1000.0, duration / 1000.0)
+            if (duration > 0) latestProgress?.invoke(player.currentPosition / 1000.0, duration / 1000.0)
             player.release()
         }
     }
