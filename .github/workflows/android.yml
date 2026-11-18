@@ -34,22 +34,6 @@ jobs:
           set -o pipefail
           ./gradlew :app:assembleRelease --stacktrace --no-daemon 2>&1 | tee build.log
 
-      - name: Сохранить журнал сборки в ветку ci-log
-        if: always()
-        run: |
-          mkdir -p ci
-          if [ -f android/build.log ]; then
-            cp android/build.log ci/last-build.log
-          else
-            echo "Gradle не оставил журнал" > ci/last-build.log
-          fi
-          git config user.name "karman-ci"
-          git config user.email "ci@karman.local"
-          git checkout -B ci-log
-          git add -f ci/last-build.log
-          git commit -m "ci: build log ${GITHUB_RUN_ID}" || true
-          git push -f origin ci-log
-
       - name: Загрузить APK как артефакт
         if: steps.build.outcome == 'success'
         uses: actions/upload-artifact@v4
@@ -59,6 +43,7 @@ jobs:
           if-no-files-found: error
 
       - name: Опубликовать релиз
+        id: release
         if: steps.build.outcome == 'success' && startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
@@ -69,6 +54,37 @@ jobs:
             Установите APK, укажите адрес сервера (например, `http://192.168.1.108:8096`), войдите под своим аккаунтом.
           files: android/app/build/outputs/apk/release/app-release.apk
           fail_on_unmatched_files: true
+
+      # Журнал и итог пишем в ветку ci-log: так результат виден без доступа к Actions API.
+      - name: Записать журнал и итог в ветку ci-log
+        if: always()
+        run: |
+          mkdir -p ci
+          if [ -f android/build.log ]; then
+            cp android/build.log ci/last-build.log
+          else
+            echo "Gradle не оставил журнал" > ci/last-build.log
+          fi
+
+          apk=android/app/build/outputs/apk/release/app-release.apk
+          {
+            echo "run: ${GITHUB_RUN_ID}"
+            echo "ref: ${GITHUB_REF}"
+            echo "build: ${{ steps.build.outcome }}"
+            echo "release: ${{ steps.release.outcome }}"
+            if [ -f "$apk" ]; then
+              echo "apk: $(stat -c %s "$apk") bytes"
+            else
+              echo "apk: отсутствует"
+            fi
+          } > ci/release.txt
+
+          git config user.name "karman-ci"
+          git config user.email "ci@karman.local"
+          git checkout -B ci-log
+          git add -f ci/last-build.log ci/release.txt
+          git commit -m "ci: build log ${GITHUB_RUN_ID}" || true
+          git push -f origin ci-log
 
       - name: Проверить результат сборки
         if: steps.build.outcome != 'success'
