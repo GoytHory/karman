@@ -37,7 +37,7 @@ object Updates {
 
     suspend fun latest(): ReleaseInfo = withContext(Dispatchers.IO) {
         val request = Request.Builder()
-            .url("https://api.github.com/repos/$REPO/releases/latest")
+            .url("https://api.github.com/repos/$REPO/releases?per_page=15")
             .header("Accept", "application/vnd.github+json")
             .build()
 
@@ -46,23 +46,31 @@ object Updates {
                 throw IllegalStateException("GitHub ответил ${response.code}")
             }
             val body = response.body?.string().orEmpty()
-            val json = JsonParser.parseString(body).asJsonObject
-            val tag = json.get("tag_name")?.asString.orEmpty().removePrefix("v").trim()
-            val notes = json.get("body")?.asString.orEmpty().trim()
-            val assets = json.getAsJsonArray("assets") ?: throw IllegalStateException("Пустой релиз")
-            val apk = assets
-                .mapNotNull { runCatching { it.asJsonObject }.getOrNull() }
-                .firstOrNull { asset ->
-                    asset.get("name")?.asString?.endsWith(".apk", ignoreCase = true) == true
-                }
-                ?: throw IllegalStateException("В релизе нет APK")
+            val releases = JsonParser.parseString(body).asJsonArray
 
-            ReleaseInfo(
-                version = tag.ifBlank { "0.0.0" },
-                notes = notes,
-                apkUrl = apk.get("browser_download_url").asString,
-                apkSize = apk.get("size")?.asLong ?: 0L,
-            )
+            // Берём самый свежий релиз, к которому приложен APK: серверные
+            // релизы без файла для телефона просто пропускаем.
+            for (element in releases) {
+                val json = runCatching { element.asJsonObject }.getOrNull() ?: continue
+                if (json.get("draft")?.asBoolean == true) continue
+                val tag = json.get("tag_name")?.asString.orEmpty().removePrefix("v").trim()
+                val notes = json.get("body")?.asString.orEmpty().trim()
+                val assets = runCatching { json.getAsJsonArray("assets") }.getOrNull() ?: continue
+                val apk = assets
+                    .mapNotNull { runCatching { it.asJsonObject }.getOrNull() }
+                    .firstOrNull { asset ->
+                        asset.get("name")?.asString?.endsWith(".apk", ignoreCase = true) == true
+                    }
+                    ?: continue
+
+                return@withContext ReleaseInfo(
+                    version = tag.ifBlank { "0.0.0" },
+                    notes = notes,
+                    apkUrl = apk.get("browser_download_url").asString,
+                    apkSize = apk.get("size")?.asLong ?: 0L,
+                )
+            }
+            throw IllegalStateException("В релизах пока нет APK")
         }
     }
 
