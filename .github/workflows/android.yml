@@ -1,0 +1,49 @@
+name: Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Собрать APK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Сборка release APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew :app:assembleRelease --stacktrace
+
+      - name: Загрузить APK как артефакт
+        uses: actions/upload-artifact@v4
+        with:
+          name: karman-apk
+          path: android/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+
+      - name: Опубликовать релиз
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Карман ${{ github.ref_name }}
+          body: |
+            Android-клиент «Кармана».
+
+            Установите APK, укажите адрес сервера (например, `http://192.168.1.108:8096`), войдите под своим аккаунтом.
+          files: android/app/build/outputs/apk/release/app-release.apk
+          fail_on_unmatched_files: true

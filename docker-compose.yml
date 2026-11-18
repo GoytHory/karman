@@ -1,0 +1,32 @@
+services:
+  karman:
+    build: .
+    image: karman:latest
+    container_name: karman
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-8095}:8095"
+    environment:
+      DATA_DIR: /data
+      VIDEO_ROOT: /video
+      ALLOW_REGISTRATION: ${ALLOW_REGISTRATION:-true}
+      SESSION_DAYS: ${SESSION_DAYS:-30}
+      TIMEZONE: ${TIMEZONE:-Europe/Moscow}
+      MAX_PARALLEL_DOWNLOADS: ${MAX_PARALLEL_DOWNLOADS:-2}
+      MAX_VIDEO_HEIGHT: ${MAX_VIDEO_HEIGHT:-1080}
+      POLL_CHECK_S: ${POLL_CHECK_S:-30}
+      DOWNLOAD_RETRIES: ${DOWNLOAD_RETRIES:-3}
+      YTDLP_COOKIES_FILE: /secrets/cookies.txt
+      YTDLP_POT_BASE_URL: ${YTDLP_POT_BASE_URL:-}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    volumes:
+      - type: bind
+        source: ./data
+        target: /data
+      - type: bind
+        source: ${VIDEO_ROOT:-./video}
+        target: /video
+      - type: bind
+        source: ./secrets
+        target: /secrets
+        read_only: true

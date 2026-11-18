@@ -1,0 +1,30 @@
+# зависимости и сборка
+**/node_modules
+frontend/dist
+frontend/tsconfig.tsbuildinfo
+backend/app/static
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# локальные данные и секреты
+data/
+video/
+secrets/*
+!secrets/.gitkeep
+.env
+*.log
+tools/shot-log.txt
+
+# служебное
+.DS_Store
+.idea/
+.vscode/
+
+# android
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+*.keystore
+*.jks

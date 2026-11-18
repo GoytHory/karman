@@ -1,0 +1,8 @@
+fastapi==0.145.0
+uvicorn[standard]==0.54.0
+pydantic-settings==2.16.0
+sqlalchemy[asyncio]==2.1.5
+aiosqlite>=0.21.0
+yt-dlp==2026.10.26
+yt-dlp-ejs==0.8.0
+bgutil-ytdlp-pot-provider==2.0.2

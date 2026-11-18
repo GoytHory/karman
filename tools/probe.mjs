@@ -1,0 +1,13 @@
+﻿import puppeteer from "puppeteer-core";
+const b = await puppeteer.launch({ executablePath: "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe", headless: "new" });
+const p = await b.newPage();
+const logs = [];
+p.on("console", m => logs.push(m.type() + ": " + m.text()));
+p.on("pageerror", e => logs.push("pageerror: " + e.stack));
+await p.goto("http://localhost:5173/", { waitUntil: "domcontentloaded" });
+await new Promise(r => setTimeout(r, 3000));
+console.log("url:", p.url());
+console.log("text:", (await p.evaluate(() => document.body.innerText)).slice(0, 400));
+console.log("html:", (await p.evaluate(() => document.getElementById("root")?.innerHTML || "")).slice(0, 300));
+console.log(logs.join("\n").slice(0, 2500));
+await b.close();
