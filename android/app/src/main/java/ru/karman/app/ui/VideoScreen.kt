@@ -2,10 +2,7 @@ package ru.karman.app.ui
 
 import android.content.Intent
 import android.content.pm.ActivityInfo
-import android.graphics.drawable.ColorDrawable
 import android.net.Uri
-import android.os.Build
-import android.view.WindowManager
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
@@ -59,9 +56,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
-import androidx.compose.ui.window.DialogWindowProvider
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -82,7 +76,12 @@ private val progressScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
 @OptIn(UnstableApi::class)
 @Composable
-fun VideoScreen(videoId: Int, onOpen: (Int) -> Unit) {
+fun VideoScreen(
+    videoId: Int,
+    fullscreen: Boolean = false,
+    onFullscreenChange: (Boolean) -> Unit = {},
+    onOpen: (Int) -> Unit,
+) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var playback by remember(videoId) { mutableStateOf<PlaybackInfo?>(null) }
@@ -92,7 +91,6 @@ fun VideoScreen(videoId: Int, onOpen: (Int) -> Unit) {
     var confirmDislike by remember(videoId) { mutableStateOf(false) }
     var eventId by remember(videoId) { mutableStateOf<Int?>(null) }
     var reload by remember(videoId) { mutableIntStateOf(0) }
-    var fullscreen by remember(videoId) { mutableStateOf(false) }
 
     LaunchedEffect(videoId, reload) {
         loading = true
@@ -155,10 +153,30 @@ fun VideoScreen(videoId: Int, onOpen: (Int) -> Unit) {
         enabled = ready && !stream.isNullOrBlank(),
     )
 
-    BackHandler(enabled = fullscreen) { fullscreen = false }
+    BackHandler(enabled = fullscreen) { onFullscreenChange(false) }
 
     LaunchedEffect(controller) {
-        if (controller == null) fullscreen = false
+        if (controller == null) onFullscreenChange(false)
+    }
+
+    // Полноэкранный режим: прячем системные панели и разворачиваем активность.
+    // Плеер при этом остаётся в текущем окне — никаких диалогов и просветов по краям.
+    val view = LocalView.current
+    DisposableEffect(fullscreen) {
+        val activity = context.findActivity()
+        if (!fullscreen || activity == null) return@DisposableEffect onDispose { }
+
+        activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        val window = activity.window
+        val bars = WindowCompat.getInsetsController(window, view)
+        bars.hide(WindowInsetsCompat.Type.systemBars())
+        bars.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+
+        onDispose {
+            activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+            WindowCompat.getInsetsController(window, view)
+                .show(WindowInsetsCompat.Type.systemBars())
+        }
     }
 
     if (loading) {
@@ -172,7 +190,11 @@ fun VideoScreen(videoId: Int, onOpen: (Int) -> Unit) {
     }
 
     if (fullscreen && controller != null) {
-        FullscreenPlayer(onDismiss = { fullscreen = false }) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black),
+        ) {
             KarmanPlayer(
                 controller = controller,
                 modifier = Modifier.fillMaxSize(),
@@ -180,12 +202,13 @@ fun VideoScreen(videoId: Int, onOpen: (Int) -> Unit) {
                 previewStep = previewStep,
                 nextTitle = next?.title,
                 fullscreen = true,
-                onToggleFullscreen = { fullscreen = false },
+                onToggleFullscreen = { onFullscreenChange(false) },
                 onNext = next?.let { neighbour -> { onOpen(neighbour.id) } },
                 onProgress = { position, duration, completed -> postProgress(position, duration, completed) },
                 onLeave = { position, duration -> postProgress(position, duration) },
             )
         }
+        return
     }
 
     val deleted = item.status == "deleted"
@@ -230,7 +253,7 @@ fun VideoScreen(videoId: Int, onOpen: (Int) -> Unit) {
                         previewStep = previewStep,
                         nextTitle = next?.title,
                         fullscreen = false,
-                        onToggleFullscreen = { fullscreen = true },
+                        onToggleFullscreen = { onFullscreenChange(true) },
                         onNext = next?.let { neighbour -> { onOpen(neighbour.id) } },
                         onProgress = { position, duration, completed ->
                             postProgress(position, duration, completed)
@@ -444,68 +467,6 @@ private fun NextCard(title: String, onClick: () -> Unit) {
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(top = 3.dp),
         )
-    }
-}
-
-/**
- * Полноэкранный плеер в отдельном окне: прячем системные панели и
- * переводим активность в горизонтальную ориентацию, пока окно открыто.
- */
-@Composable
-private fun FullscreenPlayer(onDismiss: () -> Unit, content: @Composable () -> Unit) {
-    val context = LocalContext.current
-    val activity = context.findActivity()
-
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(
-            usePlatformDefaultWidth = false,
-            decorFitsSystemWindows = false,
-            dismissOnBackPress = true,
-            dismissOnClickOutside = false,
-        ),
-    ) {
-        val view = LocalView.current
-        val window = (view.parent as? DialogWindowProvider)?.window
-
-        DisposableEffect(window) {
-            window?.let { host ->
-                host.setLayout(
-                    WindowManager.LayoutParams.MATCH_PARENT,
-                    WindowManager.LayoutParams.MATCH_PARENT,
-                )
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                    host.attributes.layoutInDisplayCutoutMode =
-                        WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
-                }
-                WindowCompat.setDecorFitsSystemWindows(host, false)
-                // Плотный фон окна: никакие края активности не просвечивают по краям плеера.
-                host.setBackgroundDrawable(ColorDrawable(0xFF000000.toInt()))
-                host.decorView.setBackgroundColor(0xFF000000.toInt())
-                WindowInsetsControllerCompat(host, host.decorView).apply {
-                    hide(WindowInsetsCompat.Type.systemBars())
-                    systemBarsBehavior =
-                        WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-                }
-            }
-            activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-
-            onDispose {
-                activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
-                activity?.let { host ->
-                    WindowCompat.getInsetsController(host.window, host.window.decorView)
-                        .show(WindowInsetsCompat.Type.systemBars())
-                }
-            }
-        }
-
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color.Black),
-        ) {
-            content()
-        }
     }
 }
 

@@ -23,11 +23,13 @@ import androidx.compose.foundation.layout.displayCutoutPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.AspectRatio
 import androidx.compose.material.icons.rounded.Fullscreen
 import androidx.compose.material.icons.rounded.FullscreenExit
 import androidx.compose.material.icons.rounded.Pause
@@ -178,6 +180,9 @@ fun KarmanPlayer(
     var scrubbing by remember { mutableStateOf(false) }
     var scrubPosition by remember { mutableLongStateOf(0L) }
     var speedMenu by remember { mutableStateOf(false) }
+    // В полном экране по умолчанию заполняем кадр целиком (как «зум» в YouTube),
+    // кнопкой можно вернуть оригинальные пропорции с чёрными полями.
+    var fill by remember(fullscreen) { mutableStateOf(fullscreen) }
     var countdown by remember { mutableStateOf<Int?>(null) }
     var flash by remember { mutableStateOf<Int?>(null) }
     var inPip by remember { mutableStateOf(activity?.isInPictureInPictureMode == true) }
@@ -342,6 +347,14 @@ fun KarmanPlayer(
         }
     }
 
+    // Читаем fill здесь, чтобы Compose перезапустил update у AndroidView:
+    // иначе смена режима не дойдёт до PlayerView.
+    val resizeMode = if (fill) {
+        AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+    } else {
+        AspectRatioFrameLayout.RESIZE_MODE_FIT
+    }
+
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -370,7 +383,10 @@ fun KarmanPlayer(
                     player = controller
                 }
             },
-            update = { view -> view.player = controller },
+            update = { view ->
+                view.player = controller
+                view.resizeMode = resizeMode
+            },
             modifier = Modifier.fillMaxSize(),
         )
 
@@ -454,6 +470,20 @@ fun KarmanPlayer(
                             )
                         }
                     }
+                }
+                if (fullscreen) {
+                    PlayerRoundButton(
+                        icon = { tint ->
+                            Icon(
+                                Icons.Rounded.AspectRatio,
+                                contentDescription = if (fill) "Оригинальные пропорции" else "Растянуть на весь экран",
+                                tint = tint,
+                                modifier = Modifier.size(18.dp),
+                            )
+                        },
+                        label = if (fill) "Оригинальные пропорции" else "Растянуть на весь экран",
+                        onClick = { fill = !fill },
+                    )
                 }
                 PlayerRoundButton(
                     icon = { tint ->
@@ -583,12 +613,13 @@ fun KarmanPlayer(
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
                     .displayCutoutPadding()
+                    .navigationBarsPadding()
                     .background(
                         Brush.verticalGradient(
                             listOf(Color.Transparent, Color(0xC9000000)),
                         ),
                     )
-                    .padding(top = 20.dp),
+                    .padding(top = 16.dp, bottom = 14.dp),
             ) {
                 if (scrubbing && previewUrl != null) {
                     val bucket = (scrubPosition / 1000 / previewStep) * previewStep
@@ -621,31 +652,31 @@ fun KarmanPlayer(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(start = 10.dp, end = 14.dp),
+                        .padding(start = 8.dp, end = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     IconButton(
                         onClick = { togglePlay() },
-                        modifier = Modifier.size(36.dp),
+                        modifier = Modifier.size(32.dp),
                     ) {
                         Icon(
                             if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
                             contentDescription = if (isPlaying) "Пауза" else "Смотреть",
                             tint = Color.White,
-                            modifier = Modifier.size(20.dp),
+                            modifier = Modifier.size(18.dp),
                         )
                     }
-                    Spacer(Modifier.width(6.dp))
+                    Spacer(Modifier.width(5.dp))
                     Text(
                         formatDuration((if (scrubbing) scrubPosition else position) / 1000.0),
                         color = Color.White,
-                        fontSize = 11.sp,
+                        fontSize = 10.5.sp,
                         fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
                     )
                     Text(
                         " / ${formatDuration(duration / 1000.0)}",
                         color = Color(0x8AFFFFFF),
-                        fontSize = 11.sp,
+                        fontSize = 10.5.sp,
                         fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
                     )
                     Spacer(Modifier.weight(1f))
@@ -682,7 +713,7 @@ fun KarmanPlayer(
                     },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(start = 10.dp, end = 10.dp, bottom = 4.dp),
+                        .padding(start = 8.dp, end = 8.dp),
                 )
             }
         }
@@ -725,7 +756,7 @@ private fun KarmanTimeline(
     val total = duration.coerceAtLeast(1L)
     Canvas(
         modifier = modifier
-            .height(20.dp)
+            .height(18.dp)
             .pointerInput(total) {
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
@@ -779,7 +810,7 @@ private fun KarmanTimeline(
             )
         }
 
-        val dotRadius = 4.dp.toPx()
+        val dotRadius = 3.5.dp.toPx()
         val dotX = (size.width * played).coerceIn(dotRadius, size.width - dotRadius)
         drawCircle(color = Lime, radius = dotRadius, center = Offset(dotX, centerY))
     }

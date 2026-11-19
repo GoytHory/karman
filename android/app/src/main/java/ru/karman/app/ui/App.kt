@@ -25,11 +25,13 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
@@ -78,36 +80,46 @@ private fun MainShell(onLoggedOut: () -> Unit) {
         else -> tabs.firstOrNull { it.route == route }?.label ?: "Карман"
     }
 
+    // Полноэкранный плеер рисуется в этом же окне, а не в отдельном Dialog:
+    // окно диалога оказывается меньше экрана, и по краям просвечивал инлайн-плеер.
+    var videoFullscreen by remember { mutableStateOf(false) }
+
+    LaunchedEffect(route) {
+        if (!route.startsWith("video/")) videoFullscreen = false
+    }
+
     Scaffold(
         modifier = Modifier.fillMaxSize(),
-        containerColor = Ink,
+        containerColor = if (videoFullscreen) Color.Black else Ink,
         topBar = {
-            TopAppBar(
-                title = { Text(title, fontSize = 16.sp, fontWeight = FontWeight.Medium) },
-                navigationIcon = {
-                    if (!topLevel) {
-                        IconButton(onClick = { nav.popBackStack() }) {
-                            Icon(Icons.Rounded.ArrowBack, contentDescription = "Назад")
+            if (!videoFullscreen) {
+                TopAppBar(
+                    title = { Text(title, fontSize = 16.sp, fontWeight = FontWeight.Medium) },
+                    navigationIcon = {
+                        if (!topLevel) {
+                            IconButton(onClick = { nav.popBackStack() }) {
+                                Icon(Icons.Rounded.ArrowBack, contentDescription = "Назад")
+                            }
                         }
-                    }
-                },
-                actions = {
-                    if (route != "settings") {
-                        IconButton(onClick = { nav.navigate("settings") }) {
-                            Icon(Icons.Rounded.Settings, contentDescription = "Настройки")
+                    },
+                    actions = {
+                        if (route != "settings") {
+                            IconButton(onClick = { nav.navigate("settings") }) {
+                                Icon(Icons.Rounded.Settings, contentDescription = "Настройки")
+                            }
                         }
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Ink,
-                    titleContentColor = TextMain,
-                    navigationIconContentColor = TextDim,
-                    actionIconContentColor = TextDim,
-                ),
-            )
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = Ink,
+                        titleContentColor = TextMain,
+                        navigationIconContentColor = TextDim,
+                        actionIconContentColor = TextDim,
+                    ),
+                )
+            }
         },
         bottomBar = {
-            if (topLevel) {
+            if (topLevel && !videoFullscreen) {
                 NavigationBar(containerColor = Panel, contentColor = TextDim) {
                     tabs.forEach { tab ->
                         NavigationBarItem(
@@ -139,7 +151,7 @@ private fun MainShell(onLoggedOut: () -> Unit) {
         NavHost(
             navController = nav,
             startDestination = "library",
-            modifier = Modifier.padding(padding),
+            modifier = if (videoFullscreen) Modifier.fillMaxSize() else Modifier.padding(padding),
             // Быстрые переходы: раньше анимация занимала почти секунду и ощущалась вязкой.
             enterTransition = {
                 fadeIn(tween(170)) + slideInHorizontally(tween(200)) { it / 14 }
@@ -196,6 +208,8 @@ private fun MainShell(onLoggedOut: () -> Unit) {
                 val id = entry.arguments?.getInt("id") ?: 0
                 VideoScreen(
                     videoId = id,
+                    fullscreen = videoFullscreen,
+                    onFullscreenChange = { videoFullscreen = it },
                     onOpen = { next ->
                         nav.navigate("video/$next") {
                             popUpTo(entry.destination.id) { inclusive = true }
