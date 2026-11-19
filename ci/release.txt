@@ -1,0 +1,5 @@
+run: 44526817659
+ref: refs/tags/v1.2.4
+build: success
+release: success
+apk: 15488583 bytes
