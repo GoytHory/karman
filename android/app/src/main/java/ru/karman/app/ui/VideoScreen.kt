@@ -2,6 +2,7 @@ package ru.karman.app.ui
 
 import android.content.Intent
 import android.content.pm.ActivityInfo
+import android.graphics.drawable.ColorDrawable
 import android.net.Uri
 import android.os.Build
 import android.view.WindowManager
@@ -174,14 +175,12 @@ fun VideoScreen(videoId: Int, onOpen: (Int) -> Unit) {
         FullscreenPlayer(onDismiss = { fullscreen = false }) {
             KarmanPlayer(
                 controller = controller,
-                title = item.title,
                 modifier = Modifier.fillMaxSize(),
                 previewUrl = previewUrl,
                 previewStep = previewStep,
                 nextTitle = next?.title,
                 fullscreen = true,
                 onToggleFullscreen = { fullscreen = false },
-                onBack = { fullscreen = false },
                 onNext = next?.let { neighbour -> { onOpen(neighbour.id) } },
                 onProgress = { position, duration, completed -> postProgress(position, duration, completed) },
                 onLeave = { position, duration -> postProgress(position, duration) },
@@ -226,7 +225,6 @@ fun VideoScreen(videoId: Int, onOpen: (Int) -> Unit) {
                 if (controller != null) {
                     KarmanPlayer(
                         controller = controller,
-                        title = item.title,
                         modifier = Modifier.fillMaxSize(),
                         previewUrl = previewUrl,
                         previewStep = previewStep,
@@ -481,6 +479,9 @@ private fun FullscreenPlayer(onDismiss: () -> Unit, content: @Composable () -> U
                         WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
                 }
                 WindowCompat.setDecorFitsSystemWindows(host, false)
+                // Плотный фон окна: никакие края активности не просвечивают по краям плеера.
+                host.setBackgroundDrawable(ColorDrawable(0xFF000000.toInt()))
+                host.decorView.setBackgroundColor(0xFF000000.toInt())
                 WindowInsetsControllerCompat(host, host.decorView).apply {
                     hide(WindowInsetsCompat.Type.systemBars())
                     systemBarsBehavior =

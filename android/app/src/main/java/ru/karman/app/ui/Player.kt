@@ -8,7 +8,11 @@ import android.content.ContextWrapper
 import android.content.pm.PackageManager
 import android.os.Build
 import android.util.Rational
+import android.view.LayoutInflater
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -23,21 +27,20 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Fullscreen
 import androidx.compose.material.icons.rounded.FullscreenExit
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PictureInPictureAlt
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Replay
+import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.Slider
-import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -53,6 +56,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
@@ -74,6 +81,7 @@ import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import coil.compose.AsyncImage
 import kotlinx.coroutines.delay
+import ru.karman.app.R
 import ru.karman.app.data.Repo
 import ru.karman.app.data.Session
 import ru.karman.app.playback.PlaybackService
@@ -142,14 +150,12 @@ fun rememberVideoController(
 @Composable
 fun KarmanPlayer(
     controller: Player,
-    title: String,
     modifier: Modifier = Modifier,
     previewUrl: String? = null,
     previewStep: Int = 5,
     nextTitle: String? = null,
     fullscreen: Boolean = false,
     onToggleFullscreen: () -> Unit = {},
-    onBack: (() -> Unit)? = null,
     onNext: (() -> Unit)? = null,
     onProgress: (position: Double, duration: Double, completed: Boolean) -> Unit = { _, _, _ -> },
     onLeave: (position: Double, duration: Double) -> Unit = { _, _ -> },
@@ -359,9 +365,7 @@ fun KarmanPlayer(
     ) {
         AndroidView(
             factory = { ctx ->
-                PlayerView(ctx).apply {
-                    useController = false
-                    resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                (LayoutInflater.from(ctx).inflate(R.layout.karman_player_view, null) as PlayerView).apply {
                     player = controller
                 }
             },
@@ -379,35 +383,88 @@ fun KarmanPlayer(
 
         if (inPip) return@Box
 
-        // верхняя строка
+        // верхний правый угол: настройки воспроизведения и размер плеера
         if (visible) {
             Row(
                 modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .fillMaxWidth()
-                    .background(Color(0xB3040406))
-                    .padding(horizontal = 6.dp, vertical = 4.dp),
+                    .align(Alignment.TopEnd)
+                    .padding(top = 8.dp, end = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                if (onBack != null) {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.Rounded.ArrowBack, contentDescription = "Назад", tint = Color.White)
-                    }
-                }
-                Text(
-                    title,
-                    color = Color.White,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Medium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f).padding(horizontal = 4.dp),
-                )
                 if (onNext != null) {
-                    IconButton(onClick = onNext) {
-                        Icon(Icons.Rounded.SkipNext, contentDescription = "Следующее видео", tint = Color.White)
+                    PlayerRoundButton(
+                        icon = { tint -> Icon(Icons.Rounded.SkipNext, contentDescription = "Следующее видео", tint = tint, modifier = Modifier.size(18.dp)) },
+                        label = "Следующее видео",
+                        onClick = onNext,
+                    )
+                }
+                Box {
+                    PlayerRoundButton(
+                        icon = { tint -> Icon(Icons.Rounded.Settings, contentDescription = "Настройки воспроизведения", tint = tint, modifier = Modifier.size(18.dp)) },
+                        label = "Настройки воспроизведения",
+                        onClick = { speedMenu = true },
+                    )
+                    DropdownMenu(
+                        expanded = speedMenu,
+                        onDismissRequest = { speedMenu = false },
+                    ) {
+                        Text(
+                            "Скорость",
+                            color = TextDim,
+                            fontSize = 10.sp,
+                            letterSpacing = 1.sp,
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
+                        )
+                        SPEEDS.forEach { value ->
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        if (value == 1f) "${value}× · обычная" else "${value}×",
+                                        color = if (speed == value) Lime else TextMain,
+                                        fontSize = 13.sp,
+                                    )
+                                },
+                                onClick = {
+                                    controller.setPlaybackSpeed(value)
+                                    Session.speed = value
+                                    speed = value
+                                    speedMenu = false
+                                },
+                            )
+                        }
+                        if (canPip) {
+                            HorizontalDivider(color = Color(0x1FFFFFFF))
+                            DropdownMenuItem(
+                                text = { Text("Картинка в картинке", color = TextMain, fontSize = 13.sp) },
+                                leadingIcon = {
+                                    Icon(
+                                        Icons.Rounded.PictureInPictureAlt,
+                                        contentDescription = null,
+                                        tint = TextDim,
+                                        modifier = Modifier.size(18.dp),
+                                    )
+                                },
+                                onClick = {
+                                    speedMenu = false
+                                    togglePip()
+                                },
+                            )
+                        }
                     }
                 }
+                PlayerRoundButton(
+                    icon = { tint ->
+                        Icon(
+                            if (fullscreen) Icons.Rounded.FullscreenExit else Icons.Rounded.Fullscreen,
+                            contentDescription = if (fullscreen) "Свернуть плеер" else "На весь экран",
+                            tint = tint,
+                            modifier = Modifier.size(18.dp),
+                        )
+                    },
+                    label = if (fullscreen) "Свернуть плеер" else "На весь экран",
+                    onClick = onToggleFullscreen,
+                )
             }
         }
 
@@ -517,21 +574,25 @@ fun KarmanPlayer(
             }
         }
 
-        // нижние контролы
+        // нижние контролы: тонкий таймлайн на всю ширину и компактная строка
         if (visible) {
             Column(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
-                    .background(Color(0xB3040406))
-                    .padding(horizontal = 6.dp, vertical = 4.dp),
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(Color.Transparent, Color(0xC9000000)),
+                        ),
+                    )
+                    .padding(top = 20.dp),
             ) {
                 if (scrubbing && previewUrl != null) {
                     val bucket = (scrubPosition / 1000 / previewStep) * previewStep
                     Box(
                         modifier = Modifier
                             .align(Alignment.CenterHorizontally)
-                            .padding(bottom = 6.dp),
+                            .padding(bottom = 4.dp),
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             AsyncImage(
@@ -554,102 +615,170 @@ fun KarmanPlayer(
                     }
                 }
 
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = { togglePlay() }) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 10.dp, end = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    IconButton(
+                        onClick = { togglePlay() },
+                        modifier = Modifier.size(36.dp),
+                    ) {
                         Icon(
                             if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
                             contentDescription = if (isPlaying) "Пауза" else "Смотреть",
                             tint = Color.White,
+                            modifier = Modifier.size(20.dp),
                         )
                     }
-
+                    Spacer(Modifier.width(6.dp))
                     Text(
                         formatDuration((if (scrubbing) scrubPosition else position) / 1000.0),
                         color = Color.White,
-                        fontSize = 10.5.sp,
+                        fontSize = 11.sp,
                         fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
                     )
-
-                    Slider(
-                        value = (if (scrubbing) scrubPosition else position).toFloat(),
-                        onValueChange = {
-                            scrubbing = true
-                            scrubPosition = it.toLong()
-                            visible = true
-                        },
-                        onValueChangeFinished = {
-                            controller.seekTo(scrubPosition)
-                            scrubbing = false
-                            ended = false
-                            countdown = null
-                            wake++
-                        },
-                        valueRange = 0f..(duration.coerceAtLeast(1000L)).toFloat(),
-                        colors = SliderDefaults.colors(
-                            thumbColor = Lime,
-                            activeTrackColor = Lime,
-                            inactiveTrackColor = Color(0x59FFFFFF),
-                        ),
-                        modifier = Modifier.weight(1f).height(28.dp),
-                    )
-
                     Text(
-                        formatDuration(duration / 1000.0),
-                        color = TextDim,
-                        fontSize = 10.5.sp,
+                        " / ${formatDuration(duration / 1000.0)}",
+                        color = Color(0x8AFFFFFF),
+                        fontSize = 11.sp,
                         fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
                     )
-
-                    Box {
-                        IconButton(onClick = { speedMenu = true }) {
-                            Text(
-                                if (speed == 1f) "1×" else "${speed}×",
-                                color = if (speed == 1f) Color.White else Lime,
-                                fontSize = 11.sp,
-                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                            )
-                        }
-                        DropdownMenu(expanded = speedMenu, onDismissRequest = { speedMenu = false }) {
-                            SPEEDS.forEach { value ->
-                                DropdownMenuItem(
-                                    text = {
-                                        Text(
-                                            "${value}×",
-                                            color = if (speed == value) Lime else TextMain,
-                                            fontSize = 12.sp,
-                                        )
-                                    },
-                                    onClick = {
-                                        controller.setPlaybackSpeed(value)
-                                        Session.speed = value
-                                        speed = value
-                                        speedMenu = false
-                                    },
-                                )
-                            }
-                        }
-                    }
-
-                    if (canPip) {
-                        IconButton(onClick = { togglePip() }) {
-                            Icon(
-                                Icons.Rounded.PictureInPictureAlt,
-                                contentDescription = "Картинка в картинке",
-                                tint = Color.White,
-                            )
-                        }
-                    }
-
-                    IconButton(onClick = onToggleFullscreen) {
-                        Icon(
-                            if (fullscreen) Icons.Rounded.FullscreenExit else Icons.Rounded.Fullscreen,
-                            contentDescription = if (fullscreen) "Выйти из полноэкранного режима" else "Полный экран",
-                            tint = Color.White,
+                    Spacer(Modifier.weight(1f))
+                    if (speed != 1f) {
+                        Text(
+                            "${speed}×",
+                            color = Lime,
+                            fontSize = 10.5.sp,
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
                         )
                     }
                 }
+
+                KarmanTimeline(
+                    position = if (scrubbing) scrubPosition else position,
+                    duration = duration,
+                    buffered = buffered,
+                    onScrubStart = {
+                        scrubbing = true
+                        visible = true
+                    },
+                    onScrub = { value ->
+                        scrubbing = true
+                        scrubPosition = value
+                        visible = true
+                    },
+                    onScrubEnd = { value ->
+                        scrubPosition = value
+                        controller.seekTo(value)
+                        scrubbing = false
+                        ended = false
+                        countdown = null
+                        wake++
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 10.dp, end = 10.dp, bottom = 4.dp),
+                )
             }
         }
+    }
+}
+
+/** Полупрозрачная круглая кнопка поверх видео. */
+@Composable
+private fun PlayerRoundButton(
+    icon: @Composable (Color) -> Unit,
+    label: String,
+    onClick: () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .size(34.dp)
+            .clip(RoundedCornerShape(50))
+            .background(Color(0x66000000))
+            .pointerInput(label) { detectTapGestures { onClick() } },
+        contentAlignment = Alignment.Center,
+    ) {
+        icon(Color.White)
+    }
+}
+
+/**
+ * Тонкий таймлайн: полоса на всю ширину и точка-указатель чуть толще полосы.
+ * Тянется пальцем, показывает буфер и отдаёт позицию в миллисекундах.
+ */
+@Composable
+private fun KarmanTimeline(
+    position: Long,
+    duration: Long,
+    buffered: Long,
+    onScrubStart: () -> Unit,
+    onScrub: (Long) -> Unit,
+    onScrubEnd: (Long) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val total = duration.coerceAtLeast(1L)
+    Canvas(
+        modifier = modifier
+            .height(20.dp)
+            .pointerInput(total) {
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    val width = size.width.toFloat().coerceAtLeast(1f)
+                    fun timeAt(x: Float): Long =
+                        ((x / width).coerceIn(0f, 1f) * total).toLong()
+
+                    down.consume()
+                    onScrubStart()
+                    onScrub(timeAt(down.position.x))
+                    var released = false
+                    while (!released) {
+                        val change = awaitPointerEvent().changes.firstOrNull { it.id == down.id } ?: break
+                        if (change.pressed) {
+                            onScrub(timeAt(change.position.x))
+                        } else {
+                            onScrubEnd(timeAt(change.position.x))
+                            released = true
+                        }
+                        change.consume()
+                    }
+                }
+            },
+    ) {
+        val barHeight = 3.dp.toPx()
+        val radius = barHeight / 2f
+        val centerY = size.height / 2f
+        val played = (position.toFloat() / total).coerceIn(0f, 1f)
+        val bufferedRatio = (buffered.toFloat() / total).coerceIn(0f, 1f)
+
+        drawRoundRect(
+            color = Color(0x38FFFFFF),
+            topLeft = Offset(0f, centerY - radius),
+            size = Size(size.width, barHeight),
+            cornerRadius = CornerRadius(radius),
+        )
+        if (bufferedRatio > 0f) {
+            drawRoundRect(
+                color = Color(0x66FFFFFF),
+                topLeft = Offset(0f, centerY - radius),
+                size = Size(size.width * bufferedRatio, barHeight),
+                cornerRadius = CornerRadius(radius),
+            )
+        }
+        if (played > 0f) {
+            drawRoundRect(
+                color = Lime,
+                topLeft = Offset(0f, centerY - radius),
+                size = Size(size.width * played, barHeight),
+                cornerRadius = CornerRadius(radius),
+            )
+        }
+
+        val dotRadius = 4.dp.toPx()
+        val dotX = (size.width * played).coerceIn(dotRadius, size.width - dotRadius)
+        drawCircle(color = Lime, radius = dotRadius, center = Offset(dotX, centerY))
     }
 }
 
