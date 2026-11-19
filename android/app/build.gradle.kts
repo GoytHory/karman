@@ -12,13 +12,31 @@ android {
         applicationId = "ru.karman.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 3
-        versionName = "1.2.0"
+        versionCode = 4
+        versionName = "1.2.1"
     }
 
     buildFeatures {
         compose = true
         buildConfig = true
+    }
+
+    // Ключ подписи приходит из CI-секретов (KARMAN_KEYSTORE_PATH указывает
+    // на расшифрованный .jks). Локально без переменных остаётся debug-подпись.
+    val releaseStore = System.getenv("KARMAN_KEYSTORE_PATH")
+        ?.takeIf { it.isNotBlank() }
+        ?.let { file(it) }
+    val hasReleaseKey = releaseStore?.exists() == true
+
+    signingConfigs {
+        if (hasReleaseKey) {
+            create("release") {
+                storeFile = releaseStore
+                storePassword = System.getenv("KARMAN_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("KARMAN_KEY_ALIAS") ?: "karman"
+                keyPassword = System.getenv("KARMAN_KEY_PASSWORD")
+            }
+        }
     }
 
     compileOptions {
@@ -37,9 +55,13 @@ android {
         }
         release {
             isMinifyEnabled = false
-            // Для установки APK нужна подпись. Пока используем отладочный ключ;
-            // собственный keystore подключается через CI-секреты.
-            signingConfig = signingConfigs.getByName("debug")
+            // В CI есть постоянный ключ — им и подписываем. Без секретов
+            // (локальная сборка) остаётся отладочный ключ.
+            signingConfig = if (hasReleaseKey) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
         }
     }
 
