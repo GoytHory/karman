@@ -406,7 +406,7 @@ fun KarmanPlayer(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .displayCutoutPadding()
-                    .padding(top = 8.dp, end = 10.dp),
+                    .padding(top = 10.dp, end = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
@@ -619,7 +619,7 @@ fun KarmanPlayer(
                             listOf(Color.Transparent, Color(0xC9000000)),
                         ),
                     )
-                    .padding(top = 14.dp, bottom = 30.dp),
+                    .padding(top = 14.dp, bottom = if (fullscreen) 40.dp else 16.dp),
             ) {
                 if (scrubbing && previewUrl != null) {
                     val bucket = (scrubPosition / 1000 / previewStep) * previewStep
@@ -729,7 +729,7 @@ private fun PlayerRoundButton(
 ) {
     Box(
         modifier = Modifier
-            .size(34.dp)
+            .size(32.dp)
             .clip(RoundedCornerShape(50))
             .background(Color(0x66000000))
             .pointerInput(label) { detectTapGestures { onClick() } },
