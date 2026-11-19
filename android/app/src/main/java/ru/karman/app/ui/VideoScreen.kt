@@ -63,7 +63,6 @@ import androidx.media3.common.util.UnstableApi
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import ru.karman.app.data.DownloadWorker
 import ru.karman.app.data.PlaybackInfo
@@ -80,6 +79,7 @@ private val progressScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 fun VideoScreen(
     videoId: Int,
     fullscreen: Boolean = false,
+    inPip: Boolean = false,
     onFullscreenChange: (Boolean) -> Unit = {},
     onOpen: (Int) -> Unit,
 ) {
@@ -158,17 +158,6 @@ fun VideoScreen(
 
     LaunchedEffect(controller) {
         if (controller == null) onFullscreenChange(false)
-    }
-
-    // В «картинке в картинке» системное окно показывает содержимое активности.
-    // Поэтому в PiP рисуем только плеер, иначе туда попадают куски интерфейса.
-    var inPip by remember { mutableStateOf(context.findActivity()?.isInPictureInPictureMode == true) }
-    LaunchedEffect(Unit) {
-        val activity = context.findActivity() ?: return@LaunchedEffect
-        while (true) {
-            inPip = activity.isInPictureInPictureMode
-            delay(250)
-        }
     }
 
     // Полноэкранный режим: прячем системные панели и разворачиваем активность.

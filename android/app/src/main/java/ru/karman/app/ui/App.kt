@@ -33,6 +33,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -42,6 +43,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import kotlinx.coroutines.delay
 import ru.karman.app.data.Session
 
 private data class Tab(val route: String, val label: String, val icon: ImageVector)
@@ -84,15 +86,28 @@ private fun MainShell(onLoggedOut: () -> Unit) {
     // окно диалога оказывается меньше экрана, и по краям просвечивал инлайн-плеер.
     var videoFullscreen by remember { mutableStateOf(false) }
 
+    // «Картинка в картинке»: системное окно показывает содержимое активности,
+    // поэтому прячем весь каркас приложения — в PiP остаётся только плеер.
+    val context = LocalContext.current
+    var inPip by remember { mutableStateOf(context.findActivity()?.isInPictureInPictureMode == true) }
+    LaunchedEffect(Unit) {
+        val activity = context.findActivity() ?: return@LaunchedEffect
+        while (true) {
+            inPip = activity.isInPictureInPictureMode
+            delay(150)
+        }
+    }
+    val chromeHidden = videoFullscreen || inPip
+
     LaunchedEffect(route) {
         if (!route.startsWith("video/")) videoFullscreen = false
     }
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
-        containerColor = if (videoFullscreen) Color.Black else Ink,
+        containerColor = if (chromeHidden) Color.Black else Ink,
         topBar = {
-            if (!videoFullscreen) {
+            if (!chromeHidden) {
                 TopAppBar(
                     title = { Text(title, fontSize = 16.sp, fontWeight = FontWeight.Medium) },
                     navigationIcon = {
@@ -119,7 +134,7 @@ private fun MainShell(onLoggedOut: () -> Unit) {
             }
         },
         bottomBar = {
-            if (topLevel && !videoFullscreen) {
+            if (topLevel && !chromeHidden) {
                 NavigationBar(containerColor = Panel, contentColor = TextDim) {
                     tabs.forEach { tab ->
                         NavigationBarItem(
@@ -151,7 +166,7 @@ private fun MainShell(onLoggedOut: () -> Unit) {
         NavHost(
             navController = nav,
             startDestination = "library",
-            modifier = if (videoFullscreen) Modifier.fillMaxSize() else Modifier.padding(padding),
+            modifier = if (chromeHidden) Modifier.fillMaxSize() else Modifier.padding(padding),
             // Быстрые переходы: раньше анимация занимала почти секунду и ощущалась вязкой.
             enterTransition = {
                 fadeIn(tween(170)) + slideInHorizontally(tween(200)) { it / 14 }
@@ -209,6 +224,7 @@ private fun MainShell(onLoggedOut: () -> Unit) {
                 VideoScreen(
                     videoId = id,
                     fullscreen = videoFullscreen,
+                    inPip = inPip,
                     onFullscreenChange = { videoFullscreen = it },
                     onOpen = { next ->
                         nav.navigate("video/$next") {
