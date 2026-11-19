@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.displayCutoutPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -303,8 +304,8 @@ fun KarmanPlayer(
         countdown = value - 1
     }
 
-    LaunchedEffect(wake, visible, isPlaying) {
-        if (!visible || !isPlaying) return@LaunchedEffect
+    LaunchedEffect(wake, visible, isPlaying, speedMenu, scrubbing) {
+        if (!visible || !isPlaying || speedMenu || scrubbing) return@LaunchedEffect
         delay(3200)
         visible = false
     }
@@ -388,6 +389,7 @@ fun KarmanPlayer(
             Row(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
+                    .displayCutoutPadding()
                     .padding(top = 8.dp, end = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -580,6 +582,7 @@ fun KarmanPlayer(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
+                    .displayCutoutPadding()
                     .background(
                         Brush.verticalGradient(
                             listOf(Color.Transparent, Color(0xC9000000)),
